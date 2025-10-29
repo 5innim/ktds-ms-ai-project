@@ -1,8 +1,6 @@
 from langchain_community.document_loaders import GithubFileLoader
 
 def load_project(access_token, repo_uri, branch):
-
-    ACCESS_TOKEN = "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"
     #"5innim/okky_copy_backend_project"
     # main
     loader = GithubFileLoader(

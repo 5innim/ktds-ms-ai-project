@@ -9,14 +9,14 @@ def make_documents_tree(documents):
     project_trees = {}
     
     for doc in documents:
-        file_path = doc.metadata.get("file_path", "unknown")
+        file_path = doc.metadata['path']
         content = doc.page_content
     
-    if file_path.endswith(".java"):
-        print(f"[Java] 파싱 중: {file_path}")
-        # Java 파서는 bytes를 입력받음
-        tree = parser.parse(bytes(content, "utf8"))
-        project_trees[file_path] = tree.root_node
+        if file_path.endswith(".java"):
+            print(f"[Java] 파싱 중: {file_path}")
+            # Java 파서는 bytes를 입력받음
+            tree = parser.parse(bytes(content, "utf8"))
+            project_trees[file_path] = tree.root_node
         
     return project_trees
 
@@ -39,23 +39,3 @@ def print_tree_recursive(node, depth=0):
     for child in node.children:
         print_tree_recursive(child, depth + 1)
         
-
-
-def main():
-    
-
-    java_code = """
-    public class HelloWorld {
-        public static void main(String[] args) {
-            System.out.println("Hello, Java!");
-        }
-    }
-    """
-    
-    tree = parser.parse(bytes(java_code, "utf8"))
-    root_node = tree.root_node
-    print_tree_recursive(root_node)
-    
-
-if __name__ == "__main__":
-    main()

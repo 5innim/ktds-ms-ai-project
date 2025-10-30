@@ -42,8 +42,8 @@ def get_class_and_method_chunks(doc: Document) -> list[Document]:
         chunk_metadata.update({
             "symbol_name": symbol_name,
             "symbol_type": "class",
-            "start_line": class_node.start_byte,
-            "end_line": class_node.end_byte,
+            "start_line": class_node.start_point[0],
+            "end_line": class_node.end_point[0],
         })
         
         chunks.append(Document(
@@ -57,15 +57,17 @@ def get_class_and_method_chunks(doc: Document) -> list[Document]:
         chunk_metadata = doc.metadata.copy()
         chunk_metadata.update({
             "symbol_name": symbol_name,
-            "symbol_type": "class",
-            "start_line": method_node.start_byte,
-            "end_line": method_node.end_byte,
+            "symbol_type": "method",
+            "start_line": method_node.start_point[0],
+            "end_line": method_node.end_point[0],
         })
         
         chunks.append(Document(
             page_content=chunk_content,
             metadata=chunk_metadata
         ))
+        
+    print(f"return chunks!: {len(chunks)}")
         
     return chunks
 

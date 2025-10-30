@@ -33,39 +33,48 @@ def get_class_and_method_chunks(doc: Document) -> list[Document]:
     cursor = QueryCursor(query)
     captures = cursor.captures(root_node)
     
-    source_bytes = doc.page_content.encode() 
-    
-    for class_node in captures['class']:
-        chunk_content = node_text(class_node, source_bytes)
-        symbol_name = node_text(class_node.child_by_field_name('name'), source_bytes)
-        chunk_metadata = doc.metadata.copy()
-        chunk_metadata.update({
-            "symbol_name": symbol_name,
-            "symbol_type": "class",
-            "start_line": class_node.start_point[0],
-            "end_line": class_node.end_point[0],
-        })
-        
-        chunks.append(Document(
-            page_content=chunk_content,
-            metadata=chunk_metadata
-        ))
-    
-    for method_node in captures['method']:
-        chunk_content = node_text(method_node, source_bytes)
-        symbol_name = node_text(method_node.child_by_field_name('name'), source_bytes)
-        chunk_metadata = doc.metadata.copy()
-        chunk_metadata.update({
-            "symbol_name": symbol_name,
-            "symbol_type": "method",
-            "start_line": method_node.start_point[0],
-            "end_line": method_node.end_point[0],
-        })
-        
-        chunks.append(Document(
-            page_content=chunk_content,
-            metadata=chunk_metadata
-        ))
+    source_bytes = doc.page_content.encode()
+
+    print(f"Captures: {captures}")
+
+    try:
+        for class_node in captures['class']:
+            chunk_content = node_text(class_node, source_bytes)
+            symbol_name = node_text(class_node.child_by_field_name('name'), source_bytes)
+            chunk_metadata = doc.metadata.copy()
+            chunk_metadata.update({
+                "symbol_name": symbol_name,
+                "symbol_type": "class",
+                "start_line": class_node.start_point[0],
+                "end_line": class_node.end_point[0],
+            })
+
+            chunks.append(Document(
+                page_content=chunk_content,
+                metadata=chunk_metadata
+            ))
+    except KeyError:
+        print("No class captures found.")
+
+    try:
+        for method_node in captures['method']:
+            chunk_content = node_text(method_node, source_bytes)
+            symbol_name = node_text(method_node.child_by_field_name('name'), source_bytes)
+            chunk_metadata = doc.metadata.copy()
+            chunk_metadata.update({
+                "symbol_name": symbol_name,
+                "symbol_type": "method",
+                "start_line": method_node.start_point[0],
+                "end_line": method_node.end_point[0],
+            })
+            print(f"method chunk_metadata: {chunk_metadata}")
+
+            chunks.append(Document(
+                page_content=chunk_content,
+                metadata=chunk_metadata
+            ))
+    except KeyError:
+        print("No method captures found.")
         
     print(f"return chunks!: {len(chunks)}")
         

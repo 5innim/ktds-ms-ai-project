@@ -35,8 +35,6 @@ def get_class_and_method_chunks(doc: Document) -> list[Document]:
     
     source_bytes = doc.page_content.encode()
 
-    print(f"Captures: {captures}")
-
     try:
         for class_node in captures['class']:
             chunk_content = node_text(class_node, source_bytes)
@@ -67,7 +65,6 @@ def get_class_and_method_chunks(doc: Document) -> list[Document]:
                 "start_line": method_node.start_point[0],
                 "end_line": method_node.end_point[0],
             })
-            print(f"method chunk_metadata: {chunk_metadata}")
 
             chunks.append(Document(
                 page_content=chunk_content,

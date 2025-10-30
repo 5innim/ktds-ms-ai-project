@@ -1,417 +1,92 @@
+"""
+Main entry point for the GitHub PR Impact Analyzer application.
 
-import os
-import re
-from typing import TypedDict, List, Optional, Literal
-
-from fastapi import FastAPI, Request, HTTPException
-from starlette.requests import Request
-from langgraph.graph import StateGraph, END
+This module sets up a FastAPI web server to receive GitHub webhooks and trigger
+a LangGraph workflow for analyzing the impact of pull requests.
+"""
 import uvicorn
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from langchain_text_splitters import PythonCodeTextSplitter, RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
-from langchain_openai import OpenAIEmbeddings
-from langchain_community.document_loaders import GithubFileLoader
-from pydantic import BaseModel
-from langchain_core.documents import Document
+from fastapi import FastAPI, Request, HTTPException
 
-from src.util.parser import java_parser
+# --- Project Imports ---
+from src.config import load_environment
+from src.github_webhook.model import WebhookPayload
+from src.langgraph_workflow.graph import create_workflow
 
-# --- Environment Setup ---
-from dotenv import load_dotenv
+# --- Environment and Workflow Setup ---
+# Load environment variables at the start
+load_environment()
 
-load_dotenv()
-
-# Ensure necessary environment variables are set
-assert os.environ.get("OPENAI_API_KEY"), "OPENAI_API_KEY environment variable not set."
-assert os.environ.get("GITHUB_TOKEN"), "GITHUB_TOKEN environment variable not set."
-
-
-# --- Pydantic Models for Webhook ---
-class PullRequest(BaseModel):
-    number: int
-    html_url: str
-
-class Repository(BaseModel):
-    full_name: str
-
-class WebhookPayload(BaseModel):
-    action: str
-    pull_request: PullRequest
-    repository: Repository
-
-
-# --- LangGraph State ---
-class GraphState(TypedDict):
-    """
-    Represents the state of our graph.
-
-    Attributes:
-        repo_full_name: The full name of the repository (e.g., "owner/repo").
-        pr_number: The pull request number.
-        pr_html_url: The URL of the pull request.
-        pr_files: A list of files changed in the PR.
-        repo_docs: Documents loaded from the repository's base branch.
-        chunks: Code chunks created from the repo documents.
-        vector_store: The vector store containing embedded chunks.
-        impact_report: The final impact analysis report.
-        error: Any error messages that occur during the process.
-        language: The primary language of the repository ('python' or 'java').
-    """
-    repo_full_name: str
-    pr_number: int
-    pr_html_url: str
-    pr_files: Optional[List[dict]] = None
-    repo_docs: Optional[List[Document]] = None
-    chunks: Optional[List[Document]] = None
-    vector_store: Optional[object] = None
-    impact_report: Optional[str] = None
-    error: Optional[str] = None
-    language: Optional[Literal["python", "java"]] = None
-    impact_context: Optional[str] = None
-
-
-# --- Graph Nodes ---
-import requests
-
-def get_pr_details(state: GraphState) -> GraphState:
-    """Fetches the list of changed files from a GitHub pull request."""
-    print("--- (1) Fetching PR Details ---")
-    # ... (same as before)
-    repo_full_name = state["repo_full_name"]
-    pr_number = state["pr_number"]
-    github_token = os.environ.get("GITHUB_TOKEN")
-    
-    api_url = f"https://api.github.com/repos/{repo_full_name}/pulls/{pr_number}/files"
-    headers = {
-        "Authorization": f"Bearer {github_token}",
-        "Accept": "application/vnd.github.v3+json",
-    }
-
-    try:
-        response = requests.get(api_url, headers=headers)
-        response.raise_for_status()
-        files = response.json()
-        
-        pr_files = [
-            {"filename": file["filename"], "patch": file.get("patch")}
-            for file in files
-        ]
-        
-        print(f"Found {len(pr_files)} changed files in PR #{pr_number}.")
-        state["pr_files"] = pr_files
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching PR files: {e}")
-        state["error"] = f"Failed to fetch PR files: {e}"
-
-    return state
-
-def load_repository(state: GraphState) -> GraphState:
-    """Loads all relevant files (.py, .java) from the repository."""
-    print("--- (2) Loading Repository Files ---")
-    if state.get("error"):
-        return state
-
-    repo_full_name = state["repo_full_name"]
-    github_token = os.environ.get("GITHUB_TOKEN")
-
-    try:
-        loader = GithubFileLoader(
-            repo=repo_full_name,
-            access_token=github_token,
-            github_api_url="https://api.github.com",
-            branch="main",
-            file_filter=lambda file_path: (file_path.endswith(".py") or file_path.endswith(".java")) and 
-                                        all(part not in file_path for part in ["__pycache__", ".venv", ".git", "target"])
-        )
-        repo_docs = loader.load()
-        print(f"Loaded {len(repo_docs)} documents from the repo.")
-        state["repo_docs"] = repo_docs
-    except Exception as e:
-        print(f"Error loading repository: {e}")
-        state["error"] = f"Failed to load repository: {e}"
-    
-    return state
-
-def determine_language(state: GraphState) -> GraphState:
-    """Determines the primary language of the PR based on file extensions."""
-    print("--- (2a) Determining Language ---")
-    if state.get("error") or not state.get("repo_docs"):
-        return state
-
-    if any(doc.metadata.get("source", "").endswith(".java") for doc in state["repo_docs"]):
-        print("Language is Java")
-        state["language"] = "java"
-    else:
-        print("Language is Python")
-        state["language"] = "python"
-    return state
-
-def chunk_and_embed_python(state: GraphState) -> GraphState:
-    """Chunks Python documents and creates a vector store."""
-    print("--- (3a) Chunking and Embedding Python ---")
-    # ... (logic from old chunk_and_embed)
-    repo_docs = state["repo_docs"]
-    
-    try:
-        text_splitter = PythonCodeTextSplitter(chunk_size=1000, chunk_overlap=100)
-        chunks = text_splitter.split_documents(repo_docs)
-        print(f"Created {len(chunks)} code chunks.")
-
-        embeddings = OpenAIEmbeddings(disallowed_special=())
-        vector_store = FAISS.from_documents(chunks, embeddings)
-        
-        state["chunks"] = chunks
-        state["vector_store"] = vector_store
-        print("Successfully created vector store for Python.")
-    except Exception as e:
-        print(f"Error during Python chunking and embedding: {e}")
-        state["error"] = f"Failed to chunk and embed Python: {e}"
-    return state
-
-def chunk_and_embed_java(state: GraphState) -> GraphState:
-    """Chunks Java documents and creates a vector store."""
-    print("--- (3b) Chunking and Embedding Java ---")
-    if state.get("error") or not state.get("repo_docs"):
-        return state
-
-    repo_docs = state["repo_docs"]
-    
-    try:
-        all_chunks = []
-        for doc in repo_docs:
-            print(f"Processing doc: {doc.metadata.get('source')}")
-            if doc.metadata.get('source', '').endswith(".java"):
-                chunks = java_parser.get_class_and_method_chunks(doc)
-                all_chunks.extend(chunks)
-        
-        print(f"Created {len(all_chunks)} code chunks for Java.")
-
-        embeddings = OpenAIEmbeddings(disallowed_special=())
-        vector_store = FAISS.from_documents(all_chunks, embeddings)
-        
-        state["chunks"] = all_chunks
-        state["vector_store"] = vector_store
-        print("Successfully created vector store for Java.")
-
-    except Exception as e:
-        print(f"Error during Java chunking and embedding: {e}")
-        state["error"] = f"Failed to chunk and embed Java: {e}"
-
-    return state
-
-def find_usages_python(state: GraphState) -> GraphState:
-    """Identifies changed Python symbols and finds their usages."""
-    print("--- (4a) Finding Usages of Changed Python Code ---")
-    # ... (logic from old find_usages)
-    pr_files = state["pr_files"]
-    vector_store = state["vector_store"]
-    impact_context = []
-
-    for file in pr_files:
-        patch = file.get("patch", "")
-        if not patch or not file.get("filename", "").endswith(".py"):
-            continue
-
-        changed_symbols = re.findall(r"(?:class|def)\s+([\w_]+)", patch)
-        
-        for symbol in set(changed_symbols):
-            print(f"Analyzing symbol: {symbol} in file {file['filename']}")
-            retriever = vector_store.as_retriever()
-            relevant_docs = retriever.get_relevant_documents(symbol)
-            
-            usage_snippets = [
-                f"- Usage in `{doc.metadata['source']}`:\n```python\n{doc.page_content}\n```"
-                for doc in relevant_docs
-                if f"def {symbol}" not in doc.page_content and f"class {symbol}" not in doc.page_content
-            ]
-            
-            context = (
-                f"Change in `{file['filename']}` related to symbol `{symbol}`:\n"
-                f"**Diff:**\n```diff\n{patch}\n```\n"
-                f"**Potential Usages:**\n" + "\n".join(usage_snippets)
-            )
-            impact_context.append(context)
-
-    state["impact_context"] = "\n\n---\n\n".join(impact_context)
-    return state
-
-def find_usages_java(state: GraphState) -> GraphState:
-    """Identifies changed Java symbols and finds their usages."""
-    print("--- (4b) Finding Usages of Changed Java Code ---")
-    if state.get("error") or not state.get("vector_store"):
-        return state
-
-    pr_files = state["pr_files"]
-    repo_docs_map = {doc.metadata["source"]: doc.page_content for doc in state["repo_docs"]}
-    vector_store = state["vector_store"]
-    impact_context = []
-
-    for file in pr_files:
-        filename = file.get("filename")
-        patch = file.get("patch", "")
-        if not patch or not filename or not filename.endswith(".java"):
-            continue
-
-        file_content = repo_docs_map.get(filename)
-        if not file_content:
-            continue
-
-        changed_symbols = java_parser.get_changed_symbols_from_patch(patch, file_content)
-        
-        for symbol in set(changed_symbols):
-            print(f"Analyzing symbol: {symbol} in file {filename}")
-            retriever = vector_store.as_retriever()
-            relevant_docs = retriever.get_relevant_documents(symbol)
-            
-            usage_snippets = [
-                f"- Usage in `{doc.metadata['source']}` (Line {doc.metadata['start_line']}):\n```java\n{doc.page_content}\n```"
-                for doc in relevant_docs
-                if symbol not in doc.metadata.get("symbol_name", "") # Basic check to avoid self-reference
-            ]
-            
-            context = (
-                f"Change in `{filename}` related to symbol `{symbol}`:\n"
-                f"**Diff:**\n```diff\n{patch}\n```\n"
-                f"**Potential Usages:**\n" + "\n".join(usage_snippets)
-            )
-            impact_context.append(context)
-
-    state["impact_context"] = "\n\n---\n\n".join(impact_context)
-    return state
-
-def generate_report(state: GraphState) -> GraphState:
-    """Generates a final impact analysis report using the LLM."""
-    print("--- (5) Generating Impact Report ---")
-    # ... (same as before)
-    if state.get("error") or not state.get("impact_context"):
-        state["impact_report"] = "Could not generate a report due to earlier errors or no impact context found."
-        return state
-
-    pr_url = state["pr_html_url"]
-    impact_context = state["impact_context"]
-
-    prompt_template = ChatPromptTemplate.from_messages(
-        [
-            ("system", "You are a senior software engineer..."), # Same prompt
-            ("human", "Please generate an impact analysis report for... {pr_url}... {impact_context}"),
-        ]
-    )
-    llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
-    chain = prompt_template | llm
-
-    try:
-        report = chain.invoke({"pr_url": pr_url, "impact_context": impact_context})
-        state["impact_report"] = report.content
-        print("Successfully generated impact report.")
-    except Exception as e:
-        print(f"Error generating report: {e}")
-        state["error"] = f"Failed to generate report: {e}"
-    return state
-
-def route_by_language(state: GraphState) -> Literal["chunk_and_embed_java", "chunk_and_embed_python"]:
-    """Routes to the appropriate chunking node based on the detected language."""
-    if state["language"] == "java":
-        return "chunk_and_embed_java"
-    else:
-        return "chunk_and_embed_python"
-
-# --- Graph Workflow Definition ---
-workflow = StateGraph(GraphState)
-
-workflow.add_node("get_pr_details", get_pr_details)
-workflow.add_node("load_repository", load_repository)
-workflow.add_node("determine_language", determine_language)
-workflow.add_node("chunk_and_embed_python", chunk_and_embed_python)
-workflow.add_node("chunk_and_embed_java", chunk_and_embed_java)
-workflow.add_node("find_usages_python", find_usages_python)
-workflow.add_node("find_usages_java", find_usages_java)
-workflow.add_node("generate_report", generate_report)
-
-workflow.set_entry_point("get_pr_details")
-workflow.add_edge("get_pr_details", "load_repository")
-workflow.add_edge("load_repository", "determine_language")
-
-workflow.add_conditional_edges(
-    "determine_language",
-    route_by_language,
-    {
-        "chunk_and_embed_java": "chunk_and_embed_java",
-        "chunk_and_embed_python": "chunk_and_embed_python",
-    },
-)
-
-workflow.add_edge("chunk_and_embed_python", "find_usages_python")
-workflow.add_edge("chunk_and_embed_java", "find_usages_java")
-
-workflow.add_edge("find_usages_python", "generate_report")
-workflow.add_edge("find_usages_java", "generate_report")
-workflow.add_edge("generate_report", END)
-
-app = workflow.compile()
-
+# Create the LangGraph workflow application
+workflow_app = create_workflow()
 
 # --- FastAPI Web Server ---
-fastapi_app = FastAPI(
+app = FastAPI(
     title="GitHub PR Impact Analyzer",
     description="Receives GitHub webhooks to analyze PR impact using LangGraph.",
 )
 
-@fastapi_app.post("/webhook")
+@app.post("/webhook")
 async def handle_webhook(request: Request):
-
+    """
+    Handles incoming GitHub pull_request events.
+    """
     event_type = request.headers.get('X-GitHub-Event')
-    
-    # 1. Ping 이벤트를 가장 먼저 확인하고 처리
+
+    # Respond to ping events for webhook setup
     if event_type == 'ping':
         print("--- Received Ping Event ---")
         return {"status": "ping received"}
-    
+
+    # We are only interested in pull request events
     if event_type != 'pull_request':
-        # FastAPI에서는 튜플 대신 Response 객체를 반환하는 것이 좋습니다.
         return {"status": f'Ignoring event: {event_type}'}
 
-    # 1. request.get_json() -> await request.json() 으로 수정
     try:
-        payload = await request.json()
+        payload_data = await request.json()
     except Exception as e:
-        print(f"JSON 파싱 오류: {e}")
+        print(f"JSON parsing error: {e}")
         raise HTTPException(status_code=400, detail="Invalid JSON body")
-    
-    print(payload['repository'])
-    print(payload['pull_request'])
-    
-    # print(payload.repository)
-    # print(payload.pull_request)
-    
-    action = payload.get('action')
-    
-    # print(payload) # 디버깅용으로 남겨두는 것 좋습니다.
 
-    # PR이 열리거나, 다시 열리거나, 새로운 커밋이 푸시되었을 때만 처리합니다.
+    # Validate the payload using Pydantic model
+    # try:
+    #     payload = WebhookPayload(**payload_data)
+    # except Exception as e:
+    #     print(f"Payload validation error: {e}")
+    #     raise HTTPException(status_code=400, detail=f"Invalid payload: {e}")
+
+    # Process only relevant pull request actions
+    action = payload_data.get('action')
     if action not in ['opened', 'reopened', 'synchronize']:
         return {"status": f'Ignoring action: {action}'}
-    
+
+    # Initial state for the LangGraph workflow
     initial_state = {
-        "repo_full_name": payload['repository']['full_name'],
-        "pr_number": payload['pull_request']['number'],
-        "pr_html_url": payload['pull_request']['html_url'],
+        "repo_full_name": payload_data['repository']['full_name'],
+        "pr_number": payload_data['pull_request']['number'],
+        "pr_html_url": payload_data['pull_request']['html_url'],
     }
 
+    # Asynchronously invoke the workflow
     try:
-        final_state = app.invoke(initial_state)
+        # Note: LangGraph's invoke is synchronous. For a production system,
+        # you might run this in a background task (e.g., with Celery or FastAPI's BackgroundTasks).
+        final_state = workflow_app.invoke(initial_state)
         print("--- Workflow Finished ---")
-        print("Final Report:", final_state.get("impact_report", "No report generated."))
-        return {"status": "success", "report": final_state.get("impact_report")}
+        report = final_state.get("impact_report", "No report generated.")
+        print("Final Report:", report)
+        return {"status": "success", "report": report}
     except Exception as e:
         print(f"--- Workflow Error ---")
         print(e)
         raise HTTPException(status_code=500, detail=str(e))
 
-@fastapi_app.get("/")
+@app.get("/")
 def read_root():
+    """
+    Root endpoint for basic health checks.
+    """
     return {"Hello": "World"}
 
+# --- Main Execution ---
 if __name__ == "__main__":
-    uvicorn.run(fastapi_app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

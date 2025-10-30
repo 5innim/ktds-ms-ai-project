@@ -189,7 +189,7 @@ def find_usages_python(state: GraphState) -> GraphState:
         for symbol in set(changed_symbols):
             print(f"Analyzing symbol: {symbol} in file {file['filename']}")
             retriever = vector_store.as_retriever()
-            relevant_docs = retriever.get_relevant_documents(symbol)
+            relevant_docs = retriever.invoke(symbol)
             
             usage_snippets = [
                 f"- Usage in `{doc.metadata['source']}`:\n```python\n{doc.page_content}\n```"
@@ -233,7 +233,7 @@ def find_usages_java(state: GraphState) -> GraphState:
         for symbol in set(changed_symbols):
             print(f"Analyzing symbol: {symbol} in file {filename}")
             retriever = vector_store.as_retriever()
-            relevant_docs = retriever.get_relevant_documents(symbol)
+            relevant_docs = retriever.invoke(symbol)
             
             usage_snippets = [
                 f"- Usage in `{doc.metadata['source']}` (Line {doc.metadata['start_line']}):\n```java\n{doc.page_content}\n```"

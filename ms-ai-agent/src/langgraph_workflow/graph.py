@@ -8,7 +8,9 @@ from typing import TypedDict, List, Optional, Literal
 
 from langgraph.graph import StateGraph, END
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
+# from langchain_openai import ChatOpenAI
+# from openai import AzureOpenAI
+from langchain_openai import AzureOpenAI
 from langchain_text_splitters import PythonCodeTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
@@ -267,8 +269,14 @@ def generate_report(state: GraphState) -> GraphState:
             ("human", "Pull Request URL: {pr_url}\n\n변경 사항 및 관련 코드:\n{impact_context}\n\n위 정보를 바탕으로 이 Pull Request에 대한 영향 분석 보고서를 한글로 작성해 주세요."),
         ]
     )
-    llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
-    chain = prompt_template | llm
+    # llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
+    azure_openai_key = os.environ.get("AZURE_OPENAI_KEY")
+    client = AzureOpenAI(
+        api_version="2024-12-01-preview",
+        azure_endpoint="https://5innim-openai-1030.openai.azure.com/",
+        api_key=azure_openai_key
+    )
+    chain = prompt_template | client
 
     try:
         report = chain.invoke({"pr_url": pr_url, "impact_context": impact_context})

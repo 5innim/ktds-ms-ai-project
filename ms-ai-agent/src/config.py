@@ -11,7 +11,7 @@ def load_environment():
     """
     load_dotenv()
     
-    required_variables = ["OPENAI_API_KEY", "GITHUB_TOKEN"]
+    required_variables = ["AZURE_OPENAI_KEY", "GITHUB_TOKEN", "OPENAI_API_KEY"]
     for var in required_variables:
         if not os.environ.get(var):
             raise AssertionError(f"{var} environment variable not set.")

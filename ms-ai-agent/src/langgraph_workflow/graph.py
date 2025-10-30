@@ -8,9 +8,7 @@ from typing import TypedDict, List, Optional, Literal
 
 from langgraph.graph import StateGraph, END
 from langchain_core.prompts import ChatPromptTemplate
-# from langchain_openai import ChatOpenAI
-# from openai import AzureOpenAI
-from langchain_openai import AzureOpenAI
+from openai import AzureOpenAI
 from langchain_text_splitters import PythonCodeTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
@@ -18,7 +16,6 @@ from langchain_community.document_loaders import GithubFileLoader
 from langchain_core.documents import Document
 
 from src.util.parser import java_parser
-from src.util.runnable.make_runnable import CallableRunnable, azure_call
 
 # --- LangGraph State ---
 class GraphState(TypedDict):
@@ -263,31 +260,22 @@ def generate_report(state: GraphState) -> GraphState:
 
     pr_url = state["pr_html_url"]
     impact_context = state["impact_context"]
-
-    prompt_template = ChatPromptTemplate.from_messages(
-        [
-            ("system", "당신은 Pull Request의 변경 사항이 다른 코드에 미치는 영향을 분석하는 시니어 소프트웨어 엔지니어입니다. 제공된 컨텍스트(변경 사항 및 사용법)를 기반으로 영향 분석 보고서를 작성해 주세요. 보고서는 명확하고 간결해야 하며, 잠재적인 문제를 강조해야 합니다. 보고서는 항상 한글로 작성해 주세요."),
-            ("human", "Pull Request URL: {pr_url}\n\n변경 사항 및 관련 코드:\n{impact_context}\n\n위 정보를 바탕으로 이 Pull Request에 대한 영향 분석 보고서를 한글로 작성해 주세요."),
-        ]
-    )
     
-    # def azure_call(payload, **kwargs):
-    #     azure_openai_key = os.environ.get("AZURE_OPENAI_KEY")
-    #     client = AzureOpenAI(
-    #         api_version="2024-12-01-preview",
-    #         azure_endpoint="https://5innim-openai-1030.openai.azure.com/",
-    #         api_key=azure_openai_key
-    #     )
-    #     result = client.chat.completions.create(deployment=..., messages=[...])
-    #     return result 
-        
-    # llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
-    runnable_llm = CallableRunnable(azure_call)
-    chain = prompt_template | runnable_llm
+    client = AzureOpenAI(
+        api_key=os.environ["AZURE_OPENAI_KEY"],
+        azure_endpoint=os.environ["AZURE_ENDPOINT"],
+        api_version=os.environ["AZURE_API_VERSION"],
+    )
+
+    deployment = os.environ["AZURE_DEPLOYMENT"]  # Azure에 만든 chat 전용 배포명
+    messages = [
+        {"role": "system", "content": "당신은 Pull Request의 변경 사항이 다른 코드에 미치는 영향을 분석하는 시니어 소프트웨어 엔지니어입니다. 제공된 컨텍스트(변경 사항 및 사용법)를 기반으로 영향 분석 보고서를 작성해 주세요. 보고서는 명확하고 간결해야 하며, 잠재적인 문제를 강조해야 합니다. 보고서는 항상 한글로 작성해 주세요"},
+        {"role": "user", "content": f"Pull Request URL: {pr_url}\n\n변경 사항 및 관련 코드:\n{impact_context}\n\n위 정보를 바탕으로 이 Pull Request에 대한 영향 분석 보고서를 한글로 작성해 주세요."}
+    ]
 
     try:
-        report = chain.invoke({"pr_url": pr_url, "impact_context": impact_context})
-        state["impact_report"] = report.content
+        resp = client.chat.completions.create(model=deployment, messages=messages)
+        state["impact_report"] = resp.choices[0].message.content
         print("Successfully generated impact report.")
     except Exception as e:
         print(f"Error generating report: {e}")

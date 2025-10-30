@@ -18,6 +18,7 @@ from langchain_community.document_loaders import GithubFileLoader
 from langchain_core.documents import Document
 
 from src.util.parser import java_parser
+from src.util.runnable.make_runnable import CallableRunnable, azure_call
 
 # --- LangGraph State ---
 class GraphState(TypedDict):
@@ -269,14 +270,20 @@ def generate_report(state: GraphState) -> GraphState:
             ("human", "Pull Request URL: {pr_url}\n\n변경 사항 및 관련 코드:\n{impact_context}\n\n위 정보를 바탕으로 이 Pull Request에 대한 영향 분석 보고서를 한글로 작성해 주세요."),
         ]
     )
+    
+    # def azure_call(payload, **kwargs):
+    #     azure_openai_key = os.environ.get("AZURE_OPENAI_KEY")
+    #     client = AzureOpenAI(
+    #         api_version="2024-12-01-preview",
+    #         azure_endpoint="https://5innim-openai-1030.openai.azure.com/",
+    #         api_key=azure_openai_key
+    #     )
+    #     result = client.chat.completions.create(deployment=..., messages=[...])
+    #     return result 
+        
     # llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
-    azure_openai_key = os.environ.get("AZURE_OPENAI_KEY")
-    client = AzureOpenAI(
-        api_version="2024-12-01-preview",
-        azure_endpoint="https://5innim-openai-1030.openai.azure.com/",
-        api_key=azure_openai_key
-    )
-    chain = prompt_template | client
+    runnable_llm = CallableRunnable(azure_call)
+    chain = prompt_template | runnable_llm
 
     try:
         report = chain.invoke({"pr_url": pr_url, "impact_context": impact_context})

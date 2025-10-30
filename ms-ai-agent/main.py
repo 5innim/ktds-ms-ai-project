@@ -6,10 +6,11 @@ a LangGraph workflow for analyzing the impact of pull requests.
 """
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException
+import httpx
+import os
 
 # --- Project Imports ---
 from src.config import load_environment
-from src.github_webhook.model import WebhookPayload
 from src.langgraph_workflow.graph import create_workflow
 
 # --- Environment and Workflow Setup ---
@@ -47,13 +48,6 @@ async def handle_webhook(request: Request):
         print(f"JSON parsing error: {e}")
         raise HTTPException(status_code=400, detail="Invalid JSON body")
 
-    # Validate the payload using Pydantic model
-    # try:
-    #     payload = WebhookPayload(**payload_data)
-    # except Exception as e:
-    #     print(f"Payload validation error: {e}")
-    #     raise HTTPException(status_code=400, detail=f"Invalid payload: {e}")
-
     # Process only relevant pull request actions
     action = payload_data.get('action')
     if action not in ['opened', 'reopened', 'synchronize']:
@@ -74,11 +68,44 @@ async def handle_webhook(request: Request):
         print("--- Workflow Finished ---")
         report = final_state.get("impact_report", "No report generated.")
         print("Final Report:", report)
+        await sendMail("bjm222@naver.com", "report for PR", report)
         return {"status": "success", "report": report}
     except Exception as e:
         print(f"--- Workflow Error ---")
         print(e)
         raise HTTPException(status_code=500, detail=str(e))
+
+async def sendMail(to, subject, body):
+    target_url = os.getenv("REPORT_TARGET_URL")
+    
+    if not target_url:
+        print(f"--- [BG Task] REPORT_TARGET_URL not set. Skipping report POST. ---")
+        return
+
+    # 3. Preparar el payload y enviarlo usando httpx
+    report_payload = {
+        "to": to,
+        "subject": subject,
+        "body": body,
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            print(f"--- [BG Task] Sending report to {target_url} ---")
+            response = await client.post(
+                target_url,
+                json=report_payload,
+                headers={"Content-Type": "application/json"},
+                timeout=15.0 # Añade un timeout
+            )
+            # Lanza un error si la respuesta es 4xx o 5xx
+            response.raise_for_status() 
+            print(f"--- [BG Task] Report sent successfully (Status: {response.status_code}) ---")
+            
+    except httpx.RequestError as e:
+        print(f"--- [BG Task] !!! Error sending report to {target_url}: {e} !!! ---")
+    except Exception as e:
+        print(f"--- [BG Task] !!! An unexpected error occurred during report POST: {e} !!! ---")
 
 @app.get("/")
 def read_root():

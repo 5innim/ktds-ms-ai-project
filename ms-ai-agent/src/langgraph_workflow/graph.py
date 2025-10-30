@@ -16,6 +16,7 @@ from langchain_community.document_loaders import GithubFileLoader
 from langchain_core.documents import Document
 
 from src.util.parser import java_parser
+from src.config import get_github_token
 
 # --- LangGraph State ---
 class GraphState(TypedDict):
@@ -53,7 +54,7 @@ def get_pr_details(state: GraphState) -> GraphState:
     print("--- (1) Fetching PR Details ---")
     repo_full_name = state["repo_full_name"]
     pr_number = state["pr_number"]
-    github_token = os.environ.get("GITHUB_TOKEN")
+    github_token = get_github_token()
     
     api_url = f"https://api.github.com/repos/{repo_full_name}/pulls/{pr_number}/files"
     headers = {
@@ -86,7 +87,7 @@ def load_repository(state: GraphState) -> GraphState:
         return state
 
     repo_full_name = state["repo_full_name"]
-    github_token = os.environ.get("GITHUB_TOKEN")
+    github_token = get_github_token()
 
     try:
         loader = GithubFileLoader(

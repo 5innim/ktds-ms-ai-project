@@ -6,11 +6,12 @@ a LangGraph workflow for analyzing the impact of pull requests.
 """
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException
+from fastapi import Body
 import httpx
 import os
 
 # --- Project Imports ---
-from src.config import load_environment
+from src.config import load_environment, set_github_token
 from src.langgraph_workflow.graph import create_workflow
 
 # --- Environment and Workflow Setup ---
@@ -73,6 +74,25 @@ async def handle_webhook(request: Request):
     except Exception as e:
         print(f"--- Workflow Error ---")
         print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    
+@app.post("/set-github-token")
+async def api_set_github_token(payload: dict = Body(...)):
+    """
+    Set the global GITHUB_TOKEN at runtime.
+
+    Expected JSON body: {"token": "ghp_..."}
+    """
+    token = payload.get("token")
+    if not token or not isinstance(token, str):
+        raise HTTPException(status_code=400, detail="Missing or invalid 'token' in request body")
+
+    try:
+        # persist_to_env=True will set os.environ['GITHUB_TOKEN'] as well
+        set_github_token(token)
+        return {"status": "success", "message": "GITHUB_TOKEN set"}
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 async def sendMail(to, subject, body):

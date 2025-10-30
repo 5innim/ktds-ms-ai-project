@@ -55,13 +55,13 @@ class CallableRunnable(Runnable):
     def __init__(self, any_fn):
         self.any_fn = any_fn
 
-    def invoke(self, input, **kwargs):
+    def invoke(self, input, config=None, **kwargs):
         # LangChain은 invoke에 다양한 입력 형태를 보낼 수 있으므로,
         # 래핑된 함수(any_fn)가 이를 적절히 처리해야 합니다.
         result = self.any_fn(input, **kwargs)
         return result
 
-    async def ainvoke(self, input, **kwargs):
+    async def ainvoke(self, input, config=None, **kwargs):
         # 비동기 SDK를 사용할 경우 대비한 구현 (선택)
         coro_or_result = self.any_fn(input, **kwargs)
         if hasattr(coro_or_result, "__await__"):

@@ -263,8 +263,8 @@ def generate_report(state: GraphState) -> GraphState:
 
     prompt_template = ChatPromptTemplate.from_messages(
         [
-            ("system", "You are a senior software engineer..."), # Same prompt
-            ("human", "Please generate an impact analysis report for... {pr_url}... {impact_context}"),
+            ("system", "당신은 Pull Request의 변경 사항이 다른 코드에 미치는 영향을 분석하는 시니어 소프트웨어 엔지니어입니다. 제공된 컨텍스트(변경 사항 및 사용법)를 기반으로 영향 분석 보고서를 작성해 주세요. 보고서는 명확하고 간결해야 하며, 잠재적인 문제를 강조해야 합니다. 보고서는 항상 한글로 작성해 주세요."),
+            ("human", "Pull Request URL: {pr_url}\n\n변경 사항 및 관련 코드:\n{impact_context}\n\n위 정보를 바탕으로 이 Pull Request에 대한 영향 분석 보고서를 한글로 작성해 주세요."),
         ]
     )
     llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)

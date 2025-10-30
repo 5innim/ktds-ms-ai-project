@@ -5,7 +5,7 @@ This module sets up a FastAPI web server to receive GitHub webhooks and trigger
 a LangGraph workflow for analyzing the impact of pull requests.
 """
 import uvicorn
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi import Body
 import httpx
 import os
@@ -27,11 +27,21 @@ app = FastAPI(
     description="Receives GitHub webhooks to analyze PR impact using LangGraph.",
 )
 
+is_rag_running: bool = False
+
+@app.get("/rag/status")
+async def get_rag_status():
+    """
+    Returns the current status of the RAG workflow.
+    """
+    return {"is_rag_running": is_rag_running}
+
+
 @app.post("/webhook")
 async def handle_webhook(request: Request):
-    """
-    Handles incoming GitHub pull_request events.
-    """
+    
+    global is_rag_running
+
     event_type = request.headers.get('X-GitHub-Event')
 
     # Respond to ping events for webhook setup
@@ -65,6 +75,7 @@ async def handle_webhook(request: Request):
     try:
         # Note: LangGraph's invoke is synchronous. For a production system,
         # you might run this in a background task (e.g., with Celery or FastAPI's BackgroundTasks).
+        is_rag_running = True
         final_state = workflow_app.invoke(initial_state)
         print("--- Workflow Finished ---")
         report = final_state.get("impact_report", "No report generated.")
@@ -75,6 +86,9 @@ async def handle_webhook(request: Request):
         print(f"--- Workflow Error ---")
         print(e)
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        is_rag_running = False
+        print("--- Workflow Background Task Finished ---")
     
     
 @app.post("/set-github-token")

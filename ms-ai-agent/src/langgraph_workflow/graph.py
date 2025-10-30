@@ -221,21 +221,15 @@ def find_usages_java(state: GraphState) -> GraphState:
     for file in pr_files:
         filename = file.get("filename")
         patch = file.get("patch", "")
-        print('-----------------')
-        print(filename)
-        print(patch)
         if not patch or not filename or not filename.endswith(".java"):
             continue
 
         file_content = repo_docs_map.get(filename)
-        print('file_content: ')
-        print(file_content)
         if not file_content:
             continue
 
         changed_symbols = java_parser.get_changed_symbols_from_patch(patch, file_content)
-        print('changed_symbols: ')
-        print(changed_symbols)
+
         for symbol in set(changed_symbols):
             print(f"Analyzing symbol: {symbol} in file {filename}")
             retriever = vector_store.as_retriever()

@@ -4,6 +4,7 @@ import re
 from typing import TypedDict, List, Optional, Literal
 
 from fastapi import FastAPI, Request, HTTPException
+from starlette.requests import Request
 from langgraph.graph import StateGraph, END
 import uvicorn
 from langchain_core.prompts import ChatPromptTemplate
@@ -180,7 +181,8 @@ def chunk_and_embed_java(state: GraphState) -> GraphState:
     try:
         all_chunks = []
         for doc in repo_docs:
-            if doc.metadata.get("source", "").endswith(".java"):
+            print(f"Processing doc: {doc.metadata.get('source')}")
+            if doc.metadata.get('source', '').endswith(".java"):
                 chunks = java_parser.get_class_and_method_chunks(doc)
                 all_chunks.extend(chunks)
         
@@ -296,7 +298,7 @@ def generate_report(state: GraphState) -> GraphState:
             ("human", "Please generate an impact analysis report for... {pr_url}... {impact_context}"),
         ]
     )
-    llm = ChatOpenAI(model="gpt-4-turbo-preview", temperature=0)
+    llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
     chain = prompt_template | llm
 
     try:
@@ -357,17 +359,44 @@ fastapi_app = FastAPI(
 )
 
 @fastapi_app.post("/webhook")
-async def handle_webhook(payload: WebhookPayload):
-    # ... (same as before)
-    if payload.action not in ["opened", "reopened", "synchronize"]:
-        return {"status": "action ignored"}
+async def handle_webhook(request: Request):
 
-    print(f"--- Received PR #{payload.pull_request.number} for repo {payload.repository.full_name} ---")
+    event_type = request.headers.get('X-GitHub-Event')
+    
+    # 1. Ping 이벤트를 가장 먼저 확인하고 처리
+    if event_type == 'ping':
+        print("--- Received Ping Event ---")
+        return {"status": "ping received"}
+    
+    if event_type != 'pull_request':
+        # FastAPI에서는 튜플 대신 Response 객체를 반환하는 것이 좋습니다.
+        return {"status": f'Ignoring event: {event_type}'}
 
+    # 1. request.get_json() -> await request.json() 으로 수정
+    try:
+        payload = await request.json()
+    except Exception as e:
+        print(f"JSON 파싱 오류: {e}")
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+    
+    print(payload['repository'])
+    print(payload['pull_request'])
+    
+    # print(payload.repository)
+    # print(payload.pull_request)
+    
+    action = payload.get('action')
+    
+    # print(payload) # 디버깅용으로 남겨두는 것 좋습니다.
+
+    # PR이 열리거나, 다시 열리거나, 새로운 커밋이 푸시되었을 때만 처리합니다.
+    if action not in ['opened', 'reopened', 'synchronize']:
+        return {"status": f'Ignoring action: {action}'}
+    
     initial_state = {
-        "repo_full_name": payload.repository.full_name,
-        "pr_number": payload.pull_request.number,
-        "pr_html_url": payload.pull_request.html_url,
+        "repo_full_name": payload['repository']['full_name'],
+        "pr_number": payload['pull_request']['number'],
+        "pr_html_url": payload['pull_request']['html_url'],
     }
 
     try:

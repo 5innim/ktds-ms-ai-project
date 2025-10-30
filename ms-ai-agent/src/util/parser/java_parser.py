@@ -1,4 +1,4 @@
-from tree_sitter import Parser, Language
+from tree_sitter import Parser, Language, QueryCursor, Query
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.documents import Document
 import tree_sitter_java as tsjava
@@ -9,6 +9,9 @@ parser = Parser(JAVA_LANGUAGE)
 def parse_java_code(content: str):
     """Parses Java code using tree-sitter."""
     return parser.parse(bytes(content, "utf8"))
+
+def node_text(node, source_bytes):
+    return source_bytes[node.start_byte:node.end_byte].decode('utf-8')
 
 def get_class_and_method_chunks(doc: Document) -> list[Document]:
     """Extracts classes and methods as separate Document chunks from a Java file."""
@@ -25,26 +28,38 @@ def get_class_and_method_chunks(doc: Document) -> list[Document]:
     (class_declaration) @class
     (method_declaration) @method
     """
-    query = JAVA_LANGUAGE.query(query_string)
-    captures = query.captures(root_node)
     
-    for node, capture_name in captures:
-        symbol_name_node = node.child_by_field_name('name')
-        if not symbol_name_node:
-            continue
-
-        symbol_name = symbol_name_node.text.decode('utf8')
-        start_line = node.start_point[0]
-        end_line = node.end_point[0]
-        
-        # Create a new Document for each chunk
-        chunk_content = node.text.decode('utf8')
+    query = Query(JAVA_LANGUAGE, query_string)
+    cursor = QueryCursor(query)
+    captures = cursor.captures(root_node)
+    
+    source_bytes = doc.page_content.encode() 
+    
+    for class_node in captures['class']:
+        chunk_content = node_text(class_node, source_bytes)
+        symbol_name = node_text(class_node.child_by_field_name('name'), source_bytes)
         chunk_metadata = doc.metadata.copy()
         chunk_metadata.update({
             "symbol_name": symbol_name,
-            "symbol_type": "class" if capture_name == "class" else "method",
-            "start_line": start_line,
-            "end_line": end_line,
+            "symbol_type": "class",
+            "start_line": class_node.start_byte,
+            "end_line": class_node.end_byte,
+        })
+        
+        chunks.append(Document(
+            page_content=chunk_content,
+            metadata=chunk_metadata
+        ))
+    
+    for method_node in captures['method']:
+        chunk_content = node_text(method_node, source_bytes)
+        symbol_name = node_text(method_node.child_by_field_name('name'), source_bytes)
+        chunk_metadata = doc.metadata.copy()
+        chunk_metadata.update({
+            "symbol_name": symbol_name,
+            "symbol_type": "class",
+            "start_line": method_node.start_byte,
+            "end_line": method_node.end_byte,
         })
         
         chunks.append(Document(

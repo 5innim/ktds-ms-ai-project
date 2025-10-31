@@ -40,7 +40,7 @@ export default defineNuxtConfig({
     // client에 공개하는 환경변수는 NUXT_PUBLIC_ 접두사 필수
     public: {
       defaultPage: process.env.NUXT_PUBLIC_DEFAULT_ACCESS_PAGE || "home",
-      baseUrl: process.env.NUXT_PUBLIC_BASE_URL || "http://localhost:8000"
+      baseUrl: process.env.NUXT_PUBLIC_BASE_URL || "http://20.33.67.16:8000"
     },
   },
 

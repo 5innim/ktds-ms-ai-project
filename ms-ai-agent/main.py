@@ -29,10 +29,7 @@ app = FastAPI(
 )
 
 origins = [
-    "http://localhost:3000",  # 예: 로컬 React/Vue/Svelte 프론트엔드
-    "http://localhost:8080",
-    "https://your-frontend-dashboard.com", # 예: 배포된 프론트엔드 주소
-    # 필요한 다른 출처들을 추가
+    "http://20.33.67.16:80"
 ]
 
 app.add_middleware(

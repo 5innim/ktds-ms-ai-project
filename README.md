@@ -1,7 +1,8 @@
 # 🚀 PR 영향도 분석 레포트 생성 에이전트
 
 **GitHub Pull Request의 프로젝트 영향도 자동 분석 시스템**
-
+http://20.33.67.16/
+https://github.com/dono-organization/dono_backend/pull/33
 ---
 
 ## 💡 1. 핵심 아이디어 (The Idea)
@@ -13,7 +14,7 @@
 - **Problem:** 코드 리뷰 시, 리뷰어는 PR의 변경 사항이 프로젝트의 다른 부분(Side Effect)에 어떤 영향을 미칠지 모두 파악하기 어렵습니다.
 - **Goal:** 이 "영향도"를 분석하여 레포트(Report)를 자동으로 생성하는 에이전트를 개발합니다.
 
-![image.png](attachment:0e32d35a-1c7a-44e3-9021-343109b91f44:image.png)
+<img width="757" height="486" alt="Image" src="https://github.com/user-attachments/assets/260d665a-3921-4b79-b406-3bf1d9fd1aef" />
 
 ---
 
@@ -33,11 +34,12 @@
     - 코드를 단순 텍스트가 아닌, **구문 트리(Syntax Tree) 형태의 자료구조**로 변환해 줍니다.
     - 이를 통해 코드의 구조적 의미(Semantic Structure)를 이해할 수 있습니다.
 
-![image.png](attachment:cf855224-9724-464b-aee3-5f519409f5e0:image.png)
 
 ---
+<img width="500" height="410" alt="Image" src="https://github.com/user-attachments/assets/a8dce68d-c878-4873-b0bb-58a36887c7ce" />
 
-## 📊 5. 기대 결과 (The Result)
+
+## 📊 4. 기대 결과 (The Result)
 
 이 프로세스를 통해 **"PR 영향도 분석 에이전트"**가 다음과 같이 동작합니다.
 
@@ -54,6 +56,6 @@
     >     - `PaymentService` (line 120)
     > - **분석:** 위 2개 서비스에서 `updateUser` 함수를 호출하고 있어 **사이드 이펙트**가 우려됩니다. 리뷰 시 해당 부분의 수정이 필요합니다.
 
-![스크린샷 2025-10-31 오후 1.08.02.png](attachment:b1e4d38a-4fe8-42b9-b201-b1f88caa49bb:스크린샷_2025-10-31_오후_1.08.02.png)
+<img width="1512" height="516" alt="Image" src="https://github.com/user-attachments/assets/9256c4b9-6a28-4403-bfca-8d5c70a827d5" />
 
-![image.png](attachment:247d63b4-2f4c-4aa3-931e-ce22d7f01d42:image.png)
+<img width="524" height="552" alt="Image" src="https://github.com/user-attachments/assets/c9567fb2-a589-4efd-9764-00b384789fdb" />

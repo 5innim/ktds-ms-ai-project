@@ -1,0 +1,78 @@
+// #### 반응형 font-size 정의 ####
+
+html {
+    // 기본 1rem = 16px 
+    font-size: 16px;
+}
+
+@media (max-width: 1200px) {
+
+    // 데스크탑
+    html {
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 768px) {
+
+    // 태블릿
+    html {
+        font-size: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+
+    // 모바일
+    html {
+        font-size: 10px;
+    }
+}
+
+
+// #### 글자 크기 ####
+.font-xxs {
+    font-size: 0.5rem;
+}
+
+.font-xs {
+    font-size: 0.75rem;
+}
+
+.font-sm {
+    font-size: 0.875rem;
+}
+
+.font-base {
+    font-size: 1rem;
+}
+
+.font-lg {
+    font-size: 2rem;
+}
+
+.font-xl {
+    font-size: 2.5rem;
+}
+
+.font-xxl {
+    font-size: 3rem;
+}
+
+
+
+// #### 글자 두께 ####
+.weight-base {
+    font-weight: 400;
+    /* 일반 두께 */
+}
+
+.weight-lg {
+    font-weight: 700;
+    /* 볼드 (굵게) */
+}
+
+.weight-xl {
+    font-weight: 900;
+    /* 매우 굵게 */
+}

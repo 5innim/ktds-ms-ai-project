@@ -1,0 +1,32 @@
+@use "@/assets/scss/color.scss" as color; 
+@use "@/assets/scss/font.scss" as font;
+@use "@/assets/scss/size.scss" as size;
+/* Base Styles */
+html, body {
+  background-color: color.$bg-primary;
+  color: color.$text-primary;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Accessibility: Focus Visible */
+*:focus-visible {
+  outline: 2px solid color.$accent-primary;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Monospaced font for code-like elements */
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* General Layout */
+.main-container {
+  padding: 2rem;
+}

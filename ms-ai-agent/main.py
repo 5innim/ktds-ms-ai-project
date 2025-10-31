@@ -6,6 +6,7 @@ a LangGraph workflow for analyzing the impact of pull requests.
 """
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body
 import httpx
 import os
@@ -25,6 +26,21 @@ workflow_app = create_workflow()
 app = FastAPI(
     title="GitHub PR Impact Analyzer",
     description="Receives GitHub webhooks to analyze PR impact using LangGraph.",
+)
+
+origins = [
+    "http://localhost:3000",  # 예: 로컬 React/Vue/Svelte 프론트엔드
+    "http://localhost:8080",
+    "https://your-frontend-dashboard.com", # 예: 배포된 프론트엔드 주소
+    # 필요한 다른 출처들을 추가
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,      # origins 리스트에 있는 출처의 요청을 허용
+    allow_credentials=True,   # 쿠키를 포함한 요청 허용
+    allow_methods=["*"],      # 모든 HTTP 메소드 (GET, POST 등) 허용
+    allow_headers=["*"],      # 모든 HTTP 헤더 허용
 )
 
 is_rag_running: bool = False

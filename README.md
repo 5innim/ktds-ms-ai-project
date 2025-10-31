@@ -6,6 +6,9 @@
 http://20.33.67.16/
 </br>
 https://github.com/dono-organization/dono_backend/pull/33
+</br>
+테스트 토큰: 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
+
 
 ## 💡 1. 핵심 아이디어 (The Idea)
 
